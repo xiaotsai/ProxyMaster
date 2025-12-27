@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Master Pro</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { 
+            --side-bg: #1e1e1e; 
+            --main-bg: #121212; 
+            --card-bg: #1e1e1e; 
+            --accent: #0078d4; 
+            --border: #333; 
+            --text: #e1e1e1; 
+            --text-dim: #888; 
+            --success: #28a745; 
+            --danger: #dc3545; 
+        }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background-color: var(--main-bg); 
+            color: var(--text); 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+        
+        /* 添加動畫樣式 */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        .progress-bar {
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent), #4ec9b0);
+            border-radius: 2px;
+            animation: shimmer 2s infinite linear;
+            background-size: 1000px 100%;
+        }
+        
+        /* 表格行動畫 */
+        tr {
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        /* 連接狀態動畫 */
+        .connection-pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        .connection-pulse.connected { background-color: var(--success); }
+        .connection-pulse.disconnected { background-color: var(--danger); }
+        
+        /* 修改：頂部導航欄 */
+        .top-nav {
+            position: fixed;
+            top: 30px; /* 下移視窗控制欄的高度 */
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--side-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 1000;
+        }
+        
+        .app-container { 
+            display: flex; 
+            flex-direction: column;
+            height: 100vh; 
+            width: 100vw; 
+            padding-top: 90px; /* 增加為 30px + 60px */
+        }
+        
+        /* 視窗控制欄 */
+        .window-title-bar {
+            position: fixed; /* 改為 fixed */
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 30px; /* 減少高度 */
+            background: var(--side-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1001;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        /* 導航項目 - 調整為水平排列 */
+        .nav-container {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            margin-left: 20px;
+        }
+        
+        .nav-item { 
+            padding: 0 20px;
+            height: 60px;
+            cursor: pointer; 
+            color: var(--text-dim); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s; 
+            font-size: 14px; 
+            border-bottom: 3px solid transparent;
+            min-width: 120px;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); }
+        .nav-item.active { 
+            background: rgba(45,45,48,0.5); 
+            color: white; 
+            border-bottom-color: var(--accent); 
+            font-weight: bold; 
+        }
+        
+        .viewport { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+        .view { 
+            display: none; 
+            flex-direction: column; 
+            height: 100%; 
+            padding: 25px; 
+            overflow-y: auto; 
+        }
+        .view.active { display: flex; }
+        
+        @keyframes pulse-green { 
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); } 
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); } 
+        }
+        @keyframes pulse-red { 
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); } 
+            70% { box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); } 
+        }
+        
+        .persistent-header { 
+            padding: 25px 25px 0 25px; 
+        }
+        .dashboard { 
+            background: linear-gradient(135deg, #2d2d30 0%, #1e1e1e 100%); 
+            border: 1px solid var(--border); 
+            padding: 25px; 
+            border-radius: 12px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            animation: fadeIn 0.5s ease-out;
+        }
+        .dashboard.connected { border-color: var(--success); animation: pulse-green 2s infinite; }
+        .dashboard.ks-active { border-color: var(--danger); animation: pulse-red 1.5s infinite; }
+        
+        .tool-card { 
+            background: var(--card-bg); 
+            padding: 24px; 
+            border-radius: 12px; 
+            border: 1px solid var(--border); 
+            margin-bottom: 20px; 
+            animation: fadeIn 0.5s ease-out;
+        }
+        .tool-card h3 { 
+            margin-bottom: 15px; 
+            color: #4ec9b0; 
+            font-size: 16px; 
+        }
+        
+        .settings-grid { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 15px; 
+            margin: 15px 0; 
+            background: rgba(255,255,255,0.03); 
+            padding: 18px; 
+            border-radius: 8px; 
+        }
+        .settings-grid label { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            cursor: pointer; 
+            font-size: 14px; 
+            color: #ccc; 
+        }
+        
+        .table-wrap { 
+            flex: 1; 
+            overflow-y: auto; 
+            background: var(--card-bg); 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
+            margin-top: 15px; 
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th { 
+            background: #2d2d30; 
+            position: sticky; 
+            top: 0; 
+            padding: 14px; 
+            text-align: left; 
+            color: #4ec9b0; 
+            font-size: 12px; 
+            z-index: 5; 
+            text-transform: uppercase; 
+            cursor: pointer; 
+        }
+        th:hover { background: #383838; }
+        td { padding: 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+        tr:hover { background: rgba(255,255,255,0.03); animation: pulse 1s infinite; }
+        tr.row-active-proxy { 
+            background: rgba(0, 120, 212, 0.15) !important; 
+            border-left: 4px solid var(--accent); 
+        }
+        
+        button { 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            color: white; 
+            font-weight: 600; 
+            font-size: 13px; 
+            transition: all 0.3s ease; 
+            position: relative;
+            overflow: hidden;
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:not(:disabled):hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        button:not(:disabled):active { transform: translateY(0); }
+        
+        .btn-blue { background: linear-gradient(135deg, #0078d4, #106ebe); }
+        .btn-blue:hover:not(:disabled) { background: linear-gradient(135deg, #106ebe, #005a9e); }
+        .btn-red { background: linear-gradient(135deg, #d83b01, #a80000); }
+        .btn-red:hover:not(:disabled) { background: linear-gradient(135deg, #a80000, #8b0000); }
+        .btn-green { background: linear-gradient(135deg, #107c10, #0b5a08); }
+        .btn-green:hover:not(:disabled) { background: linear-gradient(135deg, #0b5a08, #094707); }
+        .btn-outline { 
+            background: transparent; 
+            border: 1px solid var(--border); 
+            color: var(--text); 
+        }
+        .btn-outline:hover:not(:disabled) { 
+            background: rgba(255,255,255,0.05); 
+            border-color: var(--accent); 
+        }
+        
+        input, select, textarea { 
+            background: #2d2d30; 
+            border: 1px solid var(--border); 
+            color: white; 
+            padding: 10px 14px; 
+            border-radius: 6px; 
+            outline: none; 
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus, textarea:focus { 
+            border-color: var(--accent); 
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+        }
+        
+        .ks-switch { position: relative; display: inline-block; width: 42px; height: 22px; }
+        .ks-switch input { opacity: 0; width: 0; height: 0; }
+        .ks-slider { 
+            position: absolute; 
+            cursor: pointer; 
+            top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: #444; 
+            border-radius: 22px; 
+            transition: .4s; 
+        }
+        .ks-slider:before { 
+            content: ""; 
+            position: absolute; 
+            height: 16px; width: 16px; 
+            left: 3px; bottom: 3px; 
+            background: white; 
+            border-radius: 50%; 
+            transition: .4s; 
+        }
+        input:checked + .ks-slider { background-color: #ff8c00; }
+        input:checked + .ks-slider:before { transform: translateX(20px); }
+        
+        .status-active { 
+            color: var(--success); 
+            font-weight: bold; 
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(40, 167, 69, 0.1);
+        }
+        .status-dead { 
+            color: var(--danger); 
+            opacity: 0.8; 
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(220, 53, 69, 0.1);
+        }
+        .status-checking { 
+            color: #f1c40f; 
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(241, 196, 15, 0.1);
+        }
+        
+        .source-item {
+            background: linear-gradient(135deg, #333, #2a2a2a);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            animation: slideInRight 0.3s ease-out;
+        }
+        .source-item span:first-child {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .source-item .delete-btn {
+            color: var(--danger);
+            cursor: pointer;
+            padding: 0 8px;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        .source-item .delete-btn:hover { 
+            color: #ff6b6b; 
+            transform: scale(1.2);
+        }
+        
+        /* 通知系統樣式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 18px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            font-family: 'Segoe UI', sans-serif;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: slideInRight 0.4s forwards;
+        }
+        .notification-success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .notification-error {
+            background: linear-gradient(135deg, #dc3545, #e83e8c);
+        }
+        .notification-warning {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+        }
+        .notification-info {
+            background: linear-gradient(135deg, #0078d4, #6610f2);
+        }
+        
+        /* 進度條動畫 */
+        .notification-progress {
+            margin-top: 12px;
+            height: 3px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .notification-progress-bar {
+            height: 100%;
+            background: white;
+            width: 100%;
+            transition: width linear;
+        }
+        
+        /* 載入遮罩 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+        .loading-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 400px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .loading-spinner-large {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        /* 統計卡片 */
+        .stats-card {
+            background: linear-gradient(135deg, #2d2d30, #252525);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .stats-card h4 {
+            color: #4ec9b0;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .stats-number {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent), #4ec9b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* 應用標題 */
+        .app-title {
+            font-weight: bold;
+            color: #4ec9b0;
+            font-size: 18px;
+            margin-right: 30px;
+            pointer-events: none;
+        }
+        
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .app-container {
+                padding-top: 120px; /* 在移動設備上為導航欄留更多空間 */
+            }
+            
+            .top-nav {
+                top: 30px;
+                flex-wrap: wrap;
+                height: auto;
+                padding: 10px;
+            }
+            
+            .nav-container {
+                flex-wrap: wrap;
+                margin-left: 0;
+                margin-top: 10px;
+                width: 100%;
+            }
+            
+            .nav-item {
+                padding: 10px 15px;
+                height: auto;
+                min-width: 100px;
+                flex: 1;
+                margin: 2px;
+            }
+            
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 視窗控制欄 -->
+<div class="window-title-bar" style="--wails-draggable:drag;">
+    <div style="padding-left: 15px; font-size: 12px; color: var(--text-dim); pointer-events: none;">Proxy Master Pro</div>
+    <div class="window-controls" style="display: flex; height: 100%; --wails-draggable:none;">
+        <div onclick="window.runtime.WindowMinimise()" style="width: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+            <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="white"/></svg>
+        </div>
+        <div onclick="window.runtime.WindowToggleMaximise()" style="width: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0,0v10h10V0H0z M9,9H1V1h8V9z" fill="white"/></svg>
+        </div>
+        <div onclick="window.runtime.Quit()" style="width: 45px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#e81123'" onmouseout="this.style.background='transparent'">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0,0l10,10M10,0L0,10" stroke="white" stroke-width="1"/></svg>
+        </div>
+    </div>
+</div>
+
+<!-- 頂部導航欄 -->
+<div class="top-nav">
+    <div class="app-title">PROXY MASTER</div>
+    <div class="nav-container">
+        <div class="nav-item active" id="nav-main" onclick="switchView('main')" data-i18n="nav_main">🏠 儀表板</div>
+        <div class="nav-item" id="nav-tools" onclick="switchView('tools')" data-i18n="nav_tools">🛠️ 抓取驗證</div>
+        <div class="nav-item" id="nav-settings" onclick="switchView('settings')" data-i18n="nav_settings">⚙️ 系統設定</div>
+    </div>
+</div>
+
+<!-- 主應用容器 -->
+<div class="app-container">
+    <div class="persistent-header">
+        <div id="statusDashboard" class="dashboard">
+            <div>
+                <div style="font-size:11px; color:var(--text-dim); margin-bottom:6px; font-weight: bold;" data-i18n="dash_status_label">連線狀態</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="connection-pulse disconnected"></span>
+                    <div id="dashDetail" style="font-size:22px; font-weight:bold;" data-i18n="dash_direct">🛡️ 直連模式</div>
+                    <div id="exitIPTag" style="display:none; background: rgba(0,120,212,0.1); padding: 4px 12px; border-radius: 6px; font-size: 13px; border: 1px solid var(--accent); color: var(--accent);">Checking...</div>
+                </div>
+                <div id="ksArea" style="margin-top:15px; display:none; align-items:center; gap:10px;">
+                    <label class="ks-switch">
+                        <input type="checkbox" id="ksToggle" onchange="handleKSToggle(this.checked)">
+                        <span class="ks-slider"></span>
+                    </label>
+                    <span style="font-size:12px; font-weight:bold; color: #ff8c00;">KILL SWITCH</span>
+                    
+                    <button id="btnRecoverNet" class="btn-green" style="display:none; padding: 4px 10px; font-size: 11px; margin-left: 10px;" onclick="recoverNetwork()">
+                        🔄 恢復網路
+                    </button>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="btnVerifyIP" class="btn-outline" style="display:none;" onclick="verifySystemProxyStatus()" data-i18n="btn_verify_ip">🔍 檢測出口</button>
+                <button id="dashActionBtn" class="btn-red" style="display:none;" onclick="disableGlobalProxy()" data-i18n="dash_btn_disconnect">中斷連線</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主視圖：代理清單 -->
+    <div id="view-main" class="view active">
+        <div style="display:flex; justify-content: space-between; align-items: flex-end; margin-bottom:15px;">
+            <h2 data-i18n="title_proxy_list">代理節點清單</h2>
+            <div style="display:flex; gap:12px; align-items: center;">
+                <input type="text" id="filterInput" data-i18n-placeholder="placeholder_filter" placeholder="搜尋 IP 或國家..." style="width:220px;" oninput="handleFilter()">
+                <span id="main-stats" style="font-size:13px; color:var(--text-dim);" data-i18n="stats_ready">就緒</span>
+                <button class="btn-red" style="padding: 8px 15px;" onclick="clearDeadProxies()" data-i18n="btn_clear_dead">🗑️ 清理失效</button>
+            </div>
+        </div>
+        
+        <!-- 統計卡片 -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div class="stats-card">
+                <h4 data-i18n="msg_total_proxies">總代理數</h4>
+                <div id="stat-total" class="stats-number">0</div>
+            </div>
+            <div class="stats-card">
+                <h4 data-i18n="msg_active_proxies">存活節點</h4>
+                <div id="stat-active" class="stats-number">0</div>
+            </div>
+            <div class="stats-card">
+                <h4 data-i18n="msg_dead_proxies">失效節點</h4>
+                <div id="stat-dead" class="stats-number">0</div>
+            </div>
+            <div class="stats-card">
+                <h4>平均延遲</h4>
+                <div id="stat-latency" class="stats-number">0 ms</div>
+            </div>
+        </div>
+        
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th data-i18n="th_ip" style="width: 25%;">IP:Port</th>
+                        <th data-i18n="th_status" style="width: 15%;">狀態</th>
+                        <th data-i18n="th_latency" onclick="handleSort('latency')">延遲 ↕</th>
+                        <th data-i18n="th_region" onclick="handleSort('country')">地區 ↕</th>
+                        <th data-i18n="th_action">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="proxyTable"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 工具視圖：抓取與驗證 -->
+    <div id="view-tools" class="view">
+        <h2 style="margin-bottom: 20px;" data-i18n="nav_tools">🛠️ 抓取驗證</h2>
+        
+        <div class="tool-card">
+            <h3 data-i18n="card_task">自動化操作面板</h3>
+            <div style="display: flex; gap: 12px; margin-bottom: 15px;">
+                <button id="btnFetch" class="btn-blue" onclick="fetchProxies()" data-i18n="btn_fetch">📥 抓取節點</button>
+                <button id="btnCheck" class="btn-green" onclick="checkAllProxies()" data-i18n="btn_check">⚡ 開始驗證</button>
+                <button id="btnPause" class="btn-red" style="display:none;" onclick="togglePause()" data-i18n="btn_pause">⏸ 暫停</button>
+                <select id="protocolSelect" style="margin-left: auto; width: 150px;">
+                    <option value="http">HTTP</option>
+                    <option value="socks5">SOCKS5</option>
+                </select>
+            </div>
+            <div class="settings-grid">
+                <label>
+                    <input type="checkbox" id="checkSkipActive" checked>
+                    <span data-i18n="setting_skip_active">跳過已存活</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoDelete">
+                    <span data-i18n="setting_auto_delete">自動刪除失效</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoKS">
+                    <span data-i18n="setting_auto_ks">自動開啟 KS</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoRotate">
+                    <span data-i18n="setting_auto_rotate">失效自動換線</span>
+                </label>
+            </div>
+            <div id="progressContainer" style="display: none; margin-top: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span id="progressText">處理中...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+            </div>
+        </div>
+        
+        <div class="tool-card">
+            <h3 data-i18n="card_manual">手動管理</h3>
+            <div style="display: flex; gap: 12px;">
+                <input type="text" id="inputProxy" data-i18n-placeholder="placeholder_ip" placeholder="例如 1.2.3.4:80" style="flex: 1;">
+                <button class="btn-blue" onclick="addManualProxy()" data-i18n="btn_add">➕ 添加</button>
+                <button class="btn-outline" onclick="importFromFile()" data-i18n="btn_import">📂 匯入</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 設定視圖 -->
+    <div id="view-settings" class="view">
+        <h2 style="margin-bottom: 20px;" data-i18n="nav_settings">⚙️ 系統設定</h2>
+        
+        <div class="tool-card">
+            <h3 data-i18n="card_lang">語言設定</h3>
+            <select id="langSelect" onchange="changeLanguage(this.value)" style="width: 200px;">
+                <option value="zh-TW">繁體中文</option>
+                <option value="en-US">English</option>
+                <option value="ru-RU">Русский</option>
+            </select>
+        </div>
+        
+        <!-- 新增：連接設定 -->
+        <div class="tool-card">
+            <h3>連接設定</h3>
+            <div class="settings-grid">
+                <label>
+                    <input type="checkbox" id="checkAutoRetry" checked>
+                    <span>失敗自動重試</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoRefresh" checked>
+                    <span>自動刷新列表</span>
+                </label>
+                <label>
+                    <input type="number" id="inputTimeout" value="10" min="5" max="60" style="width: 80px;">
+                    <span>超時時間(秒)</span>
+                </label>
+                <label>
+                    <input type="number" id="inputMaxConns" value="3" min="1" max="10" style="width: 80px;">
+                    <span>最大併發數</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="tool-card">
+            <h3 data-i18n="card_source">API 來源管理</h3>
+            <div style="display: flex; gap: 12px; margin-bottom: 15px;">
+                <input type="text" id="inputSourceUrl" data-i18n-placeholder="placeholder_api" 
+                       placeholder="貼上 API 網址..." style="flex: 1;">
+                <button class="btn-blue" onclick="addSource()" data-i18n="btn_add_source">➕ 新增 API</button>
+            </div>
+            <div id="sourceContainer"></div>
+        </div>
+        
+        <div class="tool-card">
+            <h3 data-i18n="card_port">本地中轉端口</h3>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <input type="number" id="inputLocalPort" value="2080" min="1024" max="65535" style="width: 150px;">
+                <button class="btn-blue" onclick="updateLocalPort(document.getElementById('inputLocalPort').value)">更新</button>
+                <span style="font-size: 12px; color: var(--text-dim);" data-i18n="msg_port_note">* 重啟生效</span>
+            </div>
+        </div>
+        
+        <!-- 新增：數據管理 -->
+        <div class="tool-card">
+            <h3>數據管理</h3>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn-outline" onclick="cleanupOldProxies(7)" data-i18n="btn_clean_old">
+                    🗑️ 清理7天前的代理
+                </button>
+                <button class="btn-outline" onclick="exportProxiesToFile()" data-i18n="btn_export">
+                    💾 導出代理列表
+                </button>
+                <button class="btn-red" onclick="clearAllProxies()" data-i18n="btn_clear_all">
+                    ⚠️ 清空所有代理
+                </button>
+            </div>
+        </div>
+        
+        <!-- 新增：高級設定 -->
+        <div class="tool-card">
+            <h3>高級設定</h3>
+            <div class="settings-grid">
+                <label>
+                    <input type="checkbox" id="checkDebugMode">
+                    <span>除錯模式</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoStart">
+                    <span>開機自動啟動</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkMinimizeToTray">
+                    <span>最小化到系統列</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="checkAutoUpdate">
+                    <span>自動檢查更新</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 載入遮罩 -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="loading-content">
+        <div class="loading-spinner-large"></div>
+        <h3 id="loadingTitle">處理中...</h3>
+        <p id="loadingMessage">請稍候</p>
+        <div class="progress-bar" style="width: 100%; margin-top: 15px;"></div>
+    </div>
+</div>
+
+<!-- 導入 i18n.js 和 main.js -->
+<script type="module">
+    // 嘗試從 src 目錄導入 i18n.js
+    try {
+        import('./src/i18n.js').then(module => {
+            window.translations = module.translations;
+            console.log('i18n loaded successfully');
+        }).catch(err => {
+            console.warn('Failed to load i18n.js:', err);
+            // 使用默認翻譯
+            window.translations = {
+                'zh-TW': {},
+                'en-US': {},
+                'ru-RU': {}
+            };
+        });
+    } catch (e) {
+        console.error('Error loading i18n:', e);
+    }
+</script>
+
+<!-- 直接加載 main.js -->
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
